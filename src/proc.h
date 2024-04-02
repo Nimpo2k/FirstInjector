@@ -4,30 +4,37 @@
 #include <tlhelp32.h>
 #include <string>
 
+#include "utils.h"
 
-namespace proc
-{
+
+namespace proc {
 	BOOL CALLBACK EnumWindowsProc(HWND hWindow, LPARAM ptr);
-	uint32_t getModule(std::string_view moduleName, uint32_t pid);
 }
 
-struct ProcData
+class mem
 {
-	std::string processName;
-	DWORD     pid{};	  // means process id
-	HANDLE	  hProc{};    // means handle process
-	HWND	  hWindow{};  // means handle windows
+private:
+    std::string	 m_processName;
+	uint32_t     m_pid{};	   // means process id
+	HANDLE	     m_hProc{};    // means handle process
 
-	ProcData(std::string procName) : processName{ procName } 
-	{ 
+public:
+    mem(std::string procName) : m_processName{ procName } { 
 		EnumWindows(proc::EnumWindowsProc, reinterpret_cast<LPARAM>(this));
 	}
 
-	~ProcData()
-	{
-		CloseHandle(hProc);
-		CloseHandle(hWindow);
-	}
+	~mem() { CloseHandle(m_hProc); }
+
+    uint32_t GetPid() const { return m_pid; }
+	HANDLE GethProc() const { return m_hProc; }
+	std::string GetprocessName() const { return m_processName; }
+
+    void SetPid(uint32_t pid) { m_pid = pid; }
+    void SethProc(HANDLE hProc) { m_hProc = hProc; }
+    void SetprocessName(std::string processName) { m_processName = processName; }
+    
+	uint32_t getModule(std::string_view moduleName);
+	void* AllocateMemory(size_t size);
 };
 
 
