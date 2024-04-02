@@ -168,97 +168,6 @@ uint64_t GetModuleFunc(std::string_view modulename, std::string_view funcName, P
 	return targetModuleAddr + funcOffset;
 }
 
-void ApplyBaseRelocations(PeHeader* PE, RelocationParameters* param, uint64_t relocationOffset)
-{
-	// getting the address of the Base Relocation Table
-	uint64_t baseRelocTableAddr{ PE->m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress };
-	const auto* baseRelocationDirectoryEntry{ reinterpret_cast<IMAGE_BASE_RELOCATION*>(param->remoteDllBaseAddress + baseRelocTableAddr) };
-
-	const int count = baseRelocationDirectoryEntry->SizeOfBlock / (sizeof(IMAGE_BASE_RELOCATION) / sizeof(RELOCATION_INFO));
-	const auto* baseRelocationInfo{ reinterpret_cast<RELOCATION_INFO*>(reinterpret_cast<uint64_t>(baseRelocationDirectoryEntry) + sizeof(RELOCATION_INFO)) };
-
-	// iterate over the relocation entry 
-	for (size_t i{}; i < count; baseRelocationInfo++, i++)
-	{
-		if (baseRelocationDirectoryEntry->VirtualAddress == 0) break;
-
-		if (baseRelocationInfo->type == IMAGE_REL_BASED_DIR64)
-		{
-			auto relocFixAddress{ param->remoteDllBaseAddress + baseRelocationDirectoryEntry->VirtualAddress + baseRelocationInfo->offset };
-			relocFixAddress += static_cast<uint32_t>(relocationOffset);
-		}
-	}
-
-	baseRelocationDirectoryEntry = reinterpret_cast<IMAGE_BASE_RELOCATION*>(baseRelocationDirectoryEntry->VirtualAddress + baseRelocationDirectoryEntry->SizeOfBlock) ;
-}
-
-// TO DO: look if there's better way to handle the import :(
-void HandleImport(RelocationParameters* param, PeHeader* PE)
-{
-	auto* importDir = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(param->remoteDllBaseAddress + PE->m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
-
-	// iterate over each IMAGE_IMPORT_DESCRIPTOR 
-	for (size_t index{}; importDir[index].Characteristics != 0; index++) {
-		
-		// retrieve the module name and load it
-		const auto moduleName = reinterpret_cast<char*>(param->remoteDllBaseAddress + importDir[index].Name);
-		const auto loadedModuleHandle = param->remoteLoadLibraryAAddress(moduleName);
-
-		// retrieve the addr of the table entry and his name
-		auto* addressTableEntry = reinterpret_cast<IMAGE_THUNK_DATA*>(param->remoteDllBaseAddress + importDir[index].FirstThunk);
-		const auto* nameTableEntry = reinterpret_cast<IMAGE_THUNK_DATA*>(param->remoteDllBaseAddress + importDir[index].OriginalFirstThunk);
-
-		if (nameTableEntry == nullptr) {
-			nameTableEntry = addressTableEntry;
-		}
-
-		// Iterate over each entry in the name table
-		for (; nameTableEntry->u1.Function != 0; nameTableEntry++, addressTableEntry++) {
-			const auto* importedFunction = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(param->remoteDllBaseAddress + nameTableEntry->u1.AddressOfData);
-
-			// Check if the entry is an ordinal or a name. If it's an ordinal, resolve the function address using the ordinal. If it's a name, resolve the function address using the function name.
-			if (nameTableEntry->u1.Ordinal & IMAGE_ORDINAL_FLAG) {
-				addressTableEntry->u1.Function = reinterpret_cast<ULONGLONG>(
-					param->remoteGetProcAddressAddress(loadedModuleHandle, MAKEINTRESOURCEA(nameTableEntry->u1.Ordinal)));
-			}
-			else {
-				addressTableEntry->u1.Function = reinterpret_cast<ULONGLONG>(
-					param->remoteGetProcAddressAddress(loadedModuleHandle, importedFunction->Name));
-			}
-		}
-	}
-}
-
-
-
-void InitializeTlsCallbacks(RelocationParameters* param, PeHeader* PE)
-{
-	if (PE->m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].Size > 0)
-	{
-		const auto* tlsEntries{	reinterpret_cast<IMAGE_TLS_DIRECTORY*>(param->remoteDllBaseAddress + PE->m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress) };
-		const auto* tlsCallback{ reinterpret_cast<PIMAGE_TLS_CALLBACK*>(tlsEntries->AddressOfCallBacks) };
-
-		while(tlsCallback != nullptr)
-		{
-			// function been called 
-			(*tlsCallback)(reinterpret_cast<uint64_t*>(param->remoteLoadLibraryAAddress), DLL_PROCESS_ATTACH, nullptr);
-
-			// move to the next callBack
-			++tlsCallback;
-		}
-	}
-}
-
-
-void CallDllEntryPoint(RelocationParameters* param, PeHeader* PE)
-{
-	using DllMainPtr = BOOL(__stdcall*)(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
-	const auto DllMain{ reinterpret_cast<DllMainPtr>(param->remoteDllBaseAddress + PE->m_ntHeader->OptionalHeader.AddressOfEntryPoint) };
-
-	DllMain(reinterpret_cast<HINSTANCE>(param->remoteDllBaseAddress), DLL_PROCESS_ATTACH, nullptr);
-}
-
-
 void Relocations(RelocationParameters* param)
 {
 	// ntHeader + dosheader
@@ -406,8 +315,6 @@ void WriteRelocation(const HANDLE hProc, RelocationParameters* param, relocation
 	test->m_remoteParametersAddress = remoteParametersAddress;
 	test->m_remoteRelocationAddress = remoteRelocationStubAddress;
 }
-
-
 
 int main()
 {
