@@ -1,6 +1,5 @@
 #include "proc.h"
 
-#define _DEBUG
 
 BOOL CALLBACK proc::EnumWindowsProc(HWND hWindow, LPARAM ptr)
 {
@@ -15,11 +14,7 @@ BOOL CALLBACK proc::EnumWindowsProc(HWND hWindow, LPARAM ptr)
     std::string windowTitle = buffer;
     delete[] buffer;
 
-#ifdef _DEBUG 
-    std::printf("[windowTitle] %s\n", windowTitle.c_str());
-#endif
-
-    if (!windowTitle.compare(pData->GetprocessName()))
+    if (!windowTitle.compare(pData->GetProcessName()))
     {
         // get the pid
         DWORD tempPID{};
@@ -39,7 +34,7 @@ BOOL CALLBACK proc::EnumWindowsProc(HWND hWindow, LPARAM ptr)
     return true;
 }
 
-uint32_t mem::getModule(std::string_view moduleName)
+uint32_t mem::GetModule(std::string_view moduleName)
 {
 	MODULEENTRY32 moduleInfo;
 	moduleInfo.dwSize = sizeof(moduleInfo);
@@ -55,18 +50,8 @@ uint32_t mem::getModule(std::string_view moduleName)
 		return reinterpret_cast<uint32_t>(moduleInfo.modBaseAddr);
 	}
 
-    
-#ifdef _DEBUG
-        std::printf("[module32] Name: %s\nAddr: %zX\n", moduleInfo.szModule, moduleInfo.modBaseAddr);
-#endif // _DEBUG
-
-
 	while (Module32Next(moduleSnapshot, &moduleInfo))
 	{
-#ifdef _DEBUG
-        std::printf("[module32] Name: %s\nAddr: %zX\n", moduleInfo.szModule, moduleInfo.modBaseAddr);
-#endif // _DEBUG
-
 		if (!moduleName.compare(moduleInfo.szModule)) {
 			CloseHandle(moduleSnapshot);
 			return reinterpret_cast<uint32_t>(moduleInfo.modBaseAddr);

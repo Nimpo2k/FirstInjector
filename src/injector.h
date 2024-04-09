@@ -1,23 +1,8 @@
 #pragma once
-#include <string>
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <filesystem>
-
-#include "proc.h"
-#include "PeHeader.h"
+#include <cstdint>
 
 
-class mem;
-class PeHeader;
-
-namespace utils
-{
-	std::vector<char> ReadFile(const std::string& dllPath);
-	void ErrorMsgExit(std::string_view msg, bool lastError);
-	std::string GetDllPath();
-}
+#include "utils.h"
 
 namespace injector
 {
@@ -28,7 +13,3 @@ namespace injector
 	void InitializeTlsCallbacks();
 	void CallDllEntryPoint();
 }
-
-
-
-	

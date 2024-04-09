@@ -1,47 +1,66 @@
 #pragma once
-#include <winnt.h>
+
+#include <Windows.h>
 #include <vector>
+
+#include "utils.h"
+#include "proc.h"
+
+class mem;
+
 
 
 class PeHeader
 {
 private:
-	IMAGE_DOS_HEADER* m_dosHeader;
-	IMAGE_NT_HEADERS* m_ntHeader;
+	IMAGE_DOS_HEADER*      m_dosHeader;
+	IMAGE_NT_HEADERS*      m_ntHeader;
+	IMAGE_FILE_HEADER*     m_fileHeader;
 	_IMAGE_SECTION_HEADER* m_currentSection;
 public:
-	
-	PeHeader(std::vector<uint8_t>& fileBytes);
 
-	size_t size() const {
+	PeHeader(std::vector<char>& fileBytes);
+	
+
+	size_t GetSize() const {
 		return m_ntHeader->OptionalHeader.SizeOfImage;
 	}
 
-	uint64_t entryPointAddr() const {
+	uint64_t GetEntryPointAddr() const {
 		return m_ntHeader->OptionalHeader.AddressOfEntryPoint;
 	}
 
-	size_t NumberOfSection() const {
+	unsigned short GetNumberOfSection() const {
 		return m_ntHeader->FileHeader.NumberOfSections;
 	}
 
-	uint64_t CS_VirtualAddress() const {
+	uint64_t GetImageBase() const {
+		return m_ntHeader->OptionalHeader.ImageBase;
+	}
+
+
+	uint64_t CS_GetVirtualAddress() const {
 		return m_currentSection->VirtualAddress;
 	}
 
-	uint64_t CS_PointerToRawData() const {
+	uint64_t CS_GetPointerToRawData() const {
 		return m_currentSection->PointerToRawData;
 	}
 
-	uint64_t CS_SizeOfRawData() const {
+	uint64_t CS_GetSizeOfRawData() const {
 		return m_currentSection->SizeOfRawData;
 	}
 
-	auto CS_Name() const {
+	auto CS_GetName() const {
 		return m_currentSection->Name;
 	}
 
 	void IncrementCurrentSection() {
 		m_currentSection++;
 	}
+
+	uint64_t GetDirectoryImportAddr() const {
+		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+	}
 };
+

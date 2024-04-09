@@ -25,16 +25,16 @@ public:
 
 	~mem() { CloseHandle(m_hProc); }
 
-    uint32_t GetPid() const { return m_pid; }
-	HANDLE GethProc() const { return m_hProc; }
-	std::string GetprocessName() const { return m_processName; }
+    uint32_t	GetPid() const { return m_pid; }
+	HANDLE		GethProc() const { return m_hProc; }
+	std::string GetProcessName() const { return m_processName; }
 
     void SetPid(uint32_t pid) { m_pid = pid; }
     void SethProc(HANDLE hProc) { m_hProc = hProc; }
     void SetprocessName(std::string processName) { m_processName = processName; }
     
-	uint32_t getModule(std::string_view moduleName);
-	void* AllocateMemory(size_t size);
+	uint32_t GetModule(std::string_view moduleName);
+	void*	 AllocateMemory(size_t size);
 };
 
 

@@ -1,50 +1,73 @@
 #include "utils.h"
 
-uint64_t utils::WriteFileIntoProc(std::vector<uint8_t> filBytes, mem* proc, PeHeader* PE)
-{
 
+
+
+uint64_t utils::WriteFileIntoProc(std::vector<char> filBytes, mem* proc, PeHeader* PE)
+{
 	constexpr size_t relocAdrrSize{ 4096 };
 	size_t bytesWritten{};
 
-	const auto remoteBaseAddr{ proc->AllocateMemory(PE->size()) };
 
-	for (size_t i = 0; i < PE->NumberOfSection(); i++)
+	const auto remoteBaseAddr = VirtualAllocEx(
+	proc->GethProc(),
+	nullptr,
+	PE->GetSize(),
+	MEM_RESERVE | MEM_COMMIT,
+	PAGE_EXECUTE_READWRITE);
+
+	if (remoteBaseAddr == nullptr) { utils::ErrorMsgExit("VirtualAllocEx", true); };
+
+	//retarded asf 
+	unsigned long oldProtect;
+	VirtualProtectEx(proc->GethProc(), remoteBaseAddr, PE->GetImageBase(), PAGE_EXECUTE_READWRITE, &oldProtect);
+
+	// read the file
+	bool result = WriteProcessMemory(proc->GethProc(), remoteBaseAddr, filBytes.data(), 0x1000, &bytesWritten);
+	if (!result || bytesWritten == 0) { ErrorMsgExit("WriteProcessMemory", true); }
+
+#ifdef _DEBUG
+	printf("[file size] %", filBytes.data());
+	printf("[optional header size of image] %zX\n", PE->GetSize() );
+#endif
+
+	for (size_t i = 0; i < PE->GetNumberOfSection(); i++)
 	{
 		size_t bytesWritten;
 		auto result = WriteProcessMemory(
 			proc->GethProc(),
-			reinterpret_cast<char*>(remoteBaseAddr) + PE->CS_VirtualAddress(),
-			filBytes.data() + PE->CS_PointerToRawData(),
-			PE->CS_SizeOfRawData(),
+			static_cast<char*>(remoteBaseAddr) + PE->CS_GetVirtualAddress(),
+			filBytes.data() + PE->CS_GetPointerToRawData(),
+			PE->CS_GetSizeOfRawData(),
 			&bytesWritten
 		);
 
 		if (result == 0) { ErrorMsgExit("WriteProcessMemory", true); }		
 
 #ifdef _DEBUG
-		printf("[current section VirtualAddress] %zX\n", PE->CS_VirtualAddress());
-		printf("[current section PointerToRawData] %zX\n", PE->CS_PointerToRawData());
-		printf("[current section SizeOfRawData] %zX\n", PE->CS_PointerToRawData());
-		printf("[current section Name] %s\n\n", PE->CS_Name());
-#endif
+		printf("[the addr place that will be written] 0x%zX\n", reinterpret_cast<char*>(remoteBaseAddr) + PE->CS_GetVirtualAddress());
+		printf("[current section VirtualAddress] %zX\n", PE->CS_GetVirtualAddress());
+		printf("[current section PointerToRawData] %zX\n", PE->CS_GetPointerToRawData());
+		printf("[current section SizeOfRawData] %zX\n", PE->CS_GetSizeOfRawData());
+		printf("[current section Name] %s\n\n", PE->CS_GetName());
+#endif // _DEBUG
 
 		PE->IncrementCurrentSection();
 	}
 
-	bool result = WriteProcessMemory(proc->GethProc(), remoteBaseAddr, filBytes.data(), relocAdrrSize, &bytesWritten);
-	if (!result || bytesWritten == 0) { ErrorMsgExit("WriteProcessMemory", true); }	
 
 #ifdef _DEBUG
-	printf("[remoteBaseAddr] %zX\n", remoteBaseAddr);
-	printf("[sizeOfImage] %zX\n", PE->size());
-#endif 
+	printf("[remoteBaseAddr] %p\n", remoteBaseAddr);
+	printf("[nt header sizeOfImage] %zX\n", PE->GetSize());
+#endif // _DEBUG
 
 	return reinterpret_cast<uint64_t>(remoteBaseAddr);
 }
 
-std::vector<uint8_t> utils::ReadFile(const std::string& dllPath)
+std::vector<char> utils::ReadFile(const std::string& dllPath)
 {
 	std::ifstream fileStream(dllPath.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+
 
 	if (!std::filesystem::exists(dllPath.data()))
 	{
@@ -57,20 +80,27 @@ std::vector<uint8_t> utils::ReadFile(const std::string& dllPath)
 		ErrorMsgExit("file your trying to read is not a dll", false);
 	}
 
-	if (fileStream.fail()) 
-	{
+	if (fileStream.fail()) {
 		fileStream.close();
 		ErrorMsgExit("can't read the file", false);
 	}
 
-	fileStream.seekg(0, std::ios::end);
 	const auto fileSize = fileStream.tellg();
+	if(fileSize < 0x1000)
+	{
+		fileStream.close();
+		ErrorMsgExit("FileSize invalid", false);
+	}
+
+	std::vector<char> fileBytes(fileSize);
+	if(!fileBytes.data())
+	{
+		fileStream.close();
+		ErrorMsgExit("didn't allocate the dll", false);
+	}
+
 	fileStream.seekg(0, std::ios::beg);
-
-	std::vector<uint8_t> fileBytes;
-
-	fileBytes.reserve(static_cast<uint32_t>(fileSize));
-	fileBytes.insert(fileBytes.begin(), std::istream_iterator<uint8_t>(fileStream), std::istream_iterator<uint8_t>());
+	fileStream.read(fileBytes.data(), fileSize);
 	fileStream.close();
 
 	return fileBytes;
@@ -89,11 +119,7 @@ std::string utils::GetDllPath()
 
 void utils::ErrorMsgExit(std::string_view msg, bool lastError)
 {
-	if (!lastError)
-	{
-		printf("[-] %s: %zX \n", msg, GetLastError());
-	}
-	printf("[-] %s\n", msg);
+	lastError ? printf("[-] %s: %d \n", msg.data(), GetLastError()) : printf("[-] %s\n", msg.data());
 	exit(EXIT_FAILURE);
 }
 
@@ -109,7 +135,7 @@ uint64_t utils::GetModuleFunc(std::string_view modulename, std::string_view func
 	if (!localFuncAddr) { ErrorMsgExit("GetProcAddress", true); }
 
 	auto funcOffset{ static_cast<uint64_t*>(localFuncAddr) - static_cast<uint64_t*>(localModuleAddr) };
-	uint32_t targetModuleAddr{ proc->getModule(modulename.data()) };
+	uint32_t targetModuleAddr{ proc->GetModule(modulename.data()) };
 
 	return targetModuleAddr + funcOffset;
 }
