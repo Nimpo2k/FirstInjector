@@ -23,7 +23,7 @@ public:
 		EnumWindows(proc::EnumWindowsProc, reinterpret_cast<LPARAM>(this));
 	}
 
-	~mem() { CloseHandle(m_hProc); }
+	//~mem() { CloseHandle(m_hProc); }
 
     uint32_t	GetPid() const { return m_pid; }
 	HANDLE		GethProc() const { return m_hProc; }

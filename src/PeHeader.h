@@ -62,5 +62,30 @@ public:
 	uint64_t GetDirectoryImportAddr() const {
 		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
 	}
+
+	uint64_t GetDirectoryBaseRelocationAddr() const
+	{
+		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
+	}
+
+	size_t GetSizeBaseRelocation() const
+	{
+		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+	}
+
+	size_t GetSizeTLSCallBack() const
+	{
+		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].Size;
+	}
+
+	uint64_t GetTLSEntryVirtualAddress() const
+	{
+		return m_ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
+	}
+
+	uint64_t GetAddressEntryPoint() const
+	{
+		return m_ntHeader->OptionalHeader.AddressOfEntryPoint;
+	}
 };
 
